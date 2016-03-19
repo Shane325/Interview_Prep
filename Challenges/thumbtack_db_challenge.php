@@ -55,7 +55,20 @@ Class MyApp {
             //handle END request
             $this->myDatabase->closeDb();
             exit;
+        }elseif($request == 'BEGIN'){
+            //handle BEGIN request
+            $this->myDatabase->begin();
+            $this->readStandardInput();
+        }elseif($request == 'ROLLBACK'){
+            //handle ROLLBACK request
+            $this->myDatabase->rollback();
+            $this->readStandardInput();
+        }elseif($request == 'COMMIT'){
+            //handle COMMIT request
+            $this->myDatabase->commit();
+            $this->readStandardInput();
         }
+
 
         $this->myDatabase->getAllFunc();
         $this->readStandardInput();
@@ -67,7 +80,7 @@ Class MyApp {
         $input = fgets($fr);                //read 128 max characters
         $input = rtrim($input);             //trim right
         fclose($fr);                        //close the file handle
-        //return $input;                      //return the input stream
+
         $this->routeCommand($input);
     }
 
@@ -93,10 +106,29 @@ Class MyDatabase{
 
     //function to SET a name and value
     public function setFunc($name, $value){
-        $statement = $this->db->prepare('INSERT INTO storage (name, value) VALUES (:name, :value);');
-        $statement->bindValue(':name', $name);
-        $statement->bindValue(':value', $value);
-        $statement->execute();
+        //$statement = $this->db->prepare('INSERT INTO storage (name, value) VALUES (:name, :value);');
+        //$statement->bindValue(':name', $name);
+        //$statement->bindValue(':value', $value);
+        //$statement->execute();
+        $select = $this->db->prepare('SELECT * FROM storage WHERE name = :name;');
+        $select->bindValue(':name', $name);
+
+        $insert = $this->db->prepare('INSERT INTO storage (name, value) VALUES (:name, :value);');
+        $insert->bindValue(':name', $name);
+        $insert->bindValue(':value', $value);
+
+        $update = $this->db->prepare('UPDATE storage SET value = :value WHERE name = :name;');
+        $update->bindValue(':name', $name);
+        $update->bindValue(':value', $value);
+
+        $selectResult = $select->execute();
+        $row = $selectResult->fetchArray();
+
+        if($row){
+            $update->execute();
+        }else{
+            $insert->execute();
+        }
     }
 
     //function to GET a value based on name
@@ -118,14 +150,16 @@ Class MyDatabase{
 
     //function to get NUMEQUALTO
     public function numEqualToFunc($value){
-        $statement = $this->db->prepare('SELECT COUNT(name) as numequalto FROM storage WHERE $value = :value;');
+        //variable to track count
+        $count = 0;
+
+        $statement = $this->db->prepare('SELECT name FROM storage where value = :value;');
         $statement->bindValue(':value', $value);
         $result = $statement->execute();
-        //var_dump($result->fetchArray());
         while($row = $result->fetchArray()){
-            echo $row['numequalto'] . PHP_EOL;
+            $count = $count + 1;
         }
-        echo $value . PHP_EOL;
+        echo $count . PHP_EOL;
     }
 
     //function to return all values from table
@@ -139,6 +173,21 @@ Class MyDatabase{
     //function to Close db connection
     public function closeDb(){
         $this->db->close();
+    }
+
+    //function to BEGIN transaction
+    public function begin(){
+        $this->db->exec('SAVEPOINT xyz;');
+    }
+
+    //function to ROLLBACK transaction
+    public function rollback(){
+        $this->db->exec('ROLLBACK TO xyz;');
+    }
+
+    //function to COMMIT transaction
+    public function commit(){
+        $this->db->exec('RELEASE xyz;');
     }
 }
 
